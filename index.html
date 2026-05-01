@@ -459,6 +459,116 @@ body {
 }
 .showdown-list .winner { color: var(--gold); font-weight: 700; }
 
+/* Analyze Mode */
+.analyze-panel {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 400px;
+}
+.analyze-panel.show { display: flex; }
+
+.analyze-section {
+  width: 100%;
+  text-align: center;
+}
+.analyze-section-label {
+  font-size: 11px;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.card-picker {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.card-pick-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.card-pick-group label {
+  font-size: 10px;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.card-pick-group select {
+  background: #2a2a2a;
+  color: #eee;
+  border: 2px solid #555;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  text-align: center;
+  min-width: 64px;
+}
+.card-pick-group select:focus {
+  border-color: var(--gold);
+  outline: none;
+}
+.card-pick-group select.suit-select { font-size: 20px; }
+
+.analyze-btn {
+  padding: 12px 32px;
+  border: none;
+  border-radius: 10px;
+  background: var(--gold);
+  color: #111;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+.analyze-btn:active { transform: scale(0.95); }
+.analyze-btn:disabled { opacity: 0.4; cursor: default; }
+
+.analyze-result {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px;
+  background: #1a1a1a;
+  border-radius: 12px;
+  border: 1px solid #333;
+}
+.analyze-result.show { display: flex; }
+
+.analyze-action {
+  font-size: 22px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  padding: 6px 20px;
+  border-radius: 8px;
+}
+.analyze-action.raise { background: #e53935; color: #fff; }
+.analyze-action.call { background: #1976d2; color: #fff; }
+.analyze-action.fold { background: #555; color: #ccc; }
+
+.analyze-details {
+  font-size: 14px;
+  color: #ccc;
+  text-align: center;
+  line-height: 1.6;
+}
+
 @media (max-width: 480px) {
   .top-bar { padding: 4px 6px; gap: 4px; }
   .stats { gap: 8px; }
@@ -526,6 +636,7 @@ body {
       <button class="active" id="btnTrainer" onclick="setMode('trainer')">Trainer</button>
       <button id="btnLookup" onclick="setMode('lookup')">Lookup</button>
       <button id="btnRealPlay" onclick="setMode('realplay')">Real Play</button>
+      <button id="btnAnalyze" onclick="setMode('analyze')">Analyze</button>
     </div>
     <div class="table-toggle">
       <button class="active" id="btn6max" onclick="setTableSize(6)">6-Max</button>
@@ -557,6 +668,35 @@ body {
     <button class="action-btn btn-fold" id="btnFold" onclick="makeDecision('fold')">Fold</button>
     <button class="action-btn btn-call" id="btnCall" onclick="makeDecision('call')">Call</button>
     <button class="action-btn btn-raise" id="btnRaise" onclick="makeDecision('raise')">Raise</button>
+  </div>
+
+  <div class="analyze-panel" id="analyzePanel">
+    <div class="analyze-section">
+      <div class="analyze-section-label">Your Cards</div>
+      <div class="card-picker">
+        <div class="card-pick-group">
+          <label>Card 1</label>
+          <select id="rank1" onchange="onAnalyzeChange()"></select>
+          <select id="suit1" class="suit-select" onchange="onAnalyzeChange()"></select>
+        </div>
+        <div class="card-pick-group">
+          <label>Card 2</label>
+          <select id="rank2" onchange="onAnalyzeChange()"></select>
+          <select id="suit2" class="suit-select" onchange="onAnalyzeChange()"></select>
+        </div>
+      </div>
+    </div>
+    <div class="analyze-section">
+      <div class="analyze-section-label">Your Position</div>
+      <div id="analyzePosButtons" class="position-picker show" style="display:flex;"></div>
+    </div>
+    <button class="analyze-btn" id="analyzeBtn" onclick="runAnalysis()" disabled>Analyze Hand</button>
+    <div class="analyze-result" id="analyzeResult">
+      <div class="player-cards" id="analyzeCards"></div>
+      <div class="analyze-action" id="analyzeAction"></div>
+      <div class="equity-display" id="analyzeEquity"></div>
+      <div class="analyze-details" id="analyzeDetails"></div>
+    </div>
   </div>
 </div>
 
@@ -983,12 +1123,23 @@ function setMode(mode) {
   document.getElementById('btnTrainer').classList.toggle('active', mode === 'trainer');
   document.getElementById('btnLookup').classList.toggle('active', mode === 'lookup');
   document.getElementById('btnRealPlay').classList.toggle('active', mode === 'realplay');
+  document.getElementById('btnAnalyze').classList.toggle('active', mode === 'analyze');
 
   document.getElementById('potDisplay').style.display = 'none';
   document.getElementById('communityCards').innerHTML = '';
   document.getElementById('communityCards').classList.remove('show');
+  document.getElementById('analyzePanel').classList.remove('show');
 
-  if (mode === 'realplay') {
+  // Hide/show main game elements based on mode
+  const gameEls = ['handNotation', 'playerCards', 'equityDisplay', 'actions'];
+  const showGame = mode !== 'analyze';
+  gameEls.forEach(id => document.getElementById(id).style.display = showGame ? '' : 'none');
+  document.getElementById('tableContainer').style.display = showGame ? '' : 'none';
+
+  if (mode === 'analyze') {
+    hidePositionPicker();
+    initAnalyze();
+  } else if (mode === 'realplay') {
     initRealPlay();
   } else {
     restoreTrainerStats();
@@ -1009,7 +1160,9 @@ function setTableSize(size) {
   document.getElementById('btn6max').classList.toggle('active', size === 6);
   document.getElementById('btn9max').classList.toggle('active', size === 9);
 
-  if (gameMode === 'realplay') {
+  if (gameMode === 'analyze') {
+    initAnalyze();
+  } else if (gameMode === 'realplay') {
     initRealPlay();
   } else {
     score = 0; roundNum = 0; correctCount = 0; currentStreak = 0;
@@ -1801,6 +1954,103 @@ function showGameOver(playerWon) {
   document.getElementById('playerCards').innerHTML = '';
   document.getElementById('handNotation').textContent = 'Game Over';
   document.getElementById('equityDisplay').innerHTML = '';
+}
+
+// =============================================
+// ===== ANALYZE MODE =====
+// =============================================
+
+let analyzePosition = '';
+
+function initAnalyze() {
+  const panel = document.getElementById('analyzePanel');
+  panel.classList.add('show');
+
+  // Populate rank selects
+  const rankOptions = '<option value="">--</option>' +
+    RANKS.slice().reverse().map(r => `<option value="${r}">${r}</option>`).join('');
+  document.getElementById('rank1').innerHTML = rankOptions;
+  document.getElementById('rank2').innerHTML = rankOptions;
+
+  // Populate suit selects
+  const suitMap = [
+    {name: 's', symbol: '\u2660'},
+    {name: 'h', symbol: '\u2665'},
+    {name: 'd', symbol: '\u2666'},
+    {name: 'c', symbol: '\u2663'}
+  ];
+  const suitOptions = '<option value="">--</option>' +
+    suitMap.map(s => `<option value="${s.name}">${s.symbol}</option>`).join('');
+  document.getElementById('suit1').innerHTML = suitOptions;
+  document.getElementById('suit2').innerHTML = suitOptions;
+
+  // Populate position buttons
+  const positions = tableSize === 6 ? POSITIONS_6 : POSITIONS_9;
+  const posContainer = document.getElementById('analyzePosButtons');
+  posContainer.innerHTML = positions.map(p =>
+    `<button class="pos-btn" onclick="selectAnalyzePos('${p}', this)">${p}</button>`
+  ).join('');
+
+  analyzePosition = '';
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('analyzeResult').classList.remove('show');
+}
+
+function selectAnalyzePos(pos, btn) {
+  analyzePosition = pos;
+  // Highlight selected
+  document.querySelectorAll('#analyzePosButtons .pos-btn').forEach(b => {
+    b.style.borderColor = '#555';
+    b.style.color = '#ccc';
+  });
+  btn.style.borderColor = 'var(--gold)';
+  btn.style.color = 'var(--gold)';
+  onAnalyzeChange();
+}
+
+function onAnalyzeChange() {
+  const r1 = document.getElementById('rank1').value;
+  const s1 = document.getElementById('suit1').value;
+  const r2 = document.getElementById('rank2').value;
+  const s2 = document.getElementById('suit2').value;
+  const ready = r1 && s1 && r2 && s2 && analyzePosition && !(r1 === r2 && s1 === s2);
+  document.getElementById('analyzeBtn').disabled = !ready;
+}
+
+function runAnalysis() {
+  const r1 = document.getElementById('rank1').value;
+  const s1 = document.getElementById('suit1').value;
+  const r2 = document.getElementById('rank2').value;
+  const s2 = document.getElementById('suit2').value;
+
+  if (!r1 || !s1 || !r2 || !s2 || !analyzePosition) return;
+  if (r1 === r2 && s1 === s2) return; // same card
+
+  const suitSymbol = {s: '\u2660', h: '\u2665', d: '\u2666', c: '\u2663'};
+  const card1 = {rank: r1, suit: suitSymbol[s1], suitName: s1};
+  const card2 = {rank: r2, suit: suitSymbol[s2], suitName: s2};
+
+  const notation = getHandNotation(card1, card2);
+  const equity = getEquity(notation);
+  const action = getCorrectAction(notation, analyzePosition);
+  const explanation = getExplanation(notation, analyzePosition, action);
+
+  // Show cards
+  document.getElementById('analyzeCards').innerHTML = cardHTML(card1) + cardHTML(card2);
+
+  // Show action
+  const actionEl = document.getElementById('analyzeAction');
+  actionEl.textContent = action;
+  actionEl.className = 'analyze-action ' + action;
+
+  // Show equity
+  document.getElementById('analyzeEquity').innerHTML =
+    `${notation} &mdash; Pre-flop equity: <span class="equity-value">${equity}%</span>`;
+
+  // Show explanation
+  document.getElementById('analyzeDetails').textContent = explanation;
+
+  document.getElementById('analyzeResult').classList.add('show');
 }
 
 // ===== KEYBOARD SHORTCUTS =====
