@@ -1,0 +1,1834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poker Pre-Flop Trainer</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --felt: #1a5c2a;
+  --felt-dark: #0f3d1a;
+  --gold: #f0c040;
+  --card-white: #fff;
+  --correct: #4caf50;
+  --wrong: #e53935;
+  --bg: #111;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: #eee;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  user-select: none;
+}
+
+/* Top Bar */
+.top-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  padding: 6px 8px;
+  background: #1a1a1a;
+  border-bottom: 2px solid var(--gold);
+  gap: 6px;
+  font-size: 14px;
+}
+
+.stats {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.stat-item { display: flex; flex-direction: column; align-items: center; }
+.stat-label { font-size: 10px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-value { font-size: 18px; font-weight: 700; color: var(--gold); }
+
+.toggles {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.table-toggle, .mode-toggle {
+  display: flex;
+  background: #333;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.table-toggle button, .mode-toggle button {
+  border: none;
+  background: transparent;
+  color: #aaa;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.table-toggle button.active, .mode-toggle button.active {
+  background: var(--gold);
+  color: #111;
+}
+
+/* Main Area */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 10px;
+  gap: 8px;
+  position: relative;
+  overflow-y: auto;
+}
+
+/* Poker Table */
+.table-container {
+  position: relative;
+  width: min(95vw, 420px);
+  height: min(50vw, 260px);
+}
+
+.table-felt {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, #2d8a47, var(--felt) 60%, var(--felt-dark));
+  border-radius: 50%;
+  border: 6px solid #5a3a1a;
+  box-shadow: 0 0 0 4px #3a2510, 0 8px 32px rgba(0,0,0,0.5);
+}
+
+/* Pot display on table */
+.pot-display {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  text-align: center;
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 16px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+  display: none;
+}
+.pot-display .pot-label { font-size: 10px; color: #ccc; text-transform: uppercase; }
+
+.seat {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #333;
+  border: 2px solid #555;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  transform: translate(-50%, -50%);
+  transition: all 0.3s;
+  z-index: 2;
+}
+
+.seat.player {
+  border-color: var(--gold);
+  background: #2a2a00;
+  box-shadow: 0 0 12px rgba(240,192,64,0.4);
+}
+
+.seat.folded { opacity: 0.35; }
+.seat.busted { opacity: 0.15; }
+
+.seat .pos-label {
+  font-size: 9px;
+  color: #ccc;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.seat.player .pos-label { color: var(--gold); }
+
+.seat .chip-count {
+  font-size: 7px;
+  color: #8f8;
+  margin-top: 1px;
+}
+
+.seat .ai-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+}
+.ai-badge.fold-badge { background: #555; color: #ccc; }
+.ai-badge.call-badge { background: #1976d2; color: #fff; }
+.ai-badge.raise-badge { background: #e53935; color: #fff; }
+
+.btn-marker {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #111;
+  font-size: 9px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+/* Position Picker */
+.position-picker {
+  display: none;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  padding: 4px 0;
+}
+.position-picker.show { display: flex; }
+
+.pos-btn {
+  padding: 8px 14px;
+  border: 2px solid #555;
+  border-radius: 8px;
+  background: #2a2a2a;
+  color: #ccc;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pos-btn:hover { border-color: var(--gold); color: var(--gold); }
+.pos-btn:active { transform: scale(0.95); }
+
+/* Cards */
+.player-cards {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.card {
+  width: 64px;
+  height: 92px;
+  background: var(--card-white);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  position: relative;
+  line-height: 1;
+}
+
+.card .rank { font-size: 28px; }
+.card .suit { font-size: 24px; margin-top: 2px; }
+.card.red { color: #d32f2f; }
+.card.black { color: #222; }
+
+.card .corner {
+  position: absolute;
+  top: 4px;
+  left: 5px;
+  font-size: 11px;
+  line-height: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.card .corner-br {
+  position: absolute;
+  bottom: 4px;
+  right: 5px;
+  font-size: 11px;
+  line-height: 1;
+  transform: rotate(180deg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Equity display */
+.equity-display {
+  text-align: center;
+  font-size: 14px;
+  color: #ccc;
+}
+
+.equity-display .equity-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+/* Community cards */
+.community-cards {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  min-height: 0;
+}
+.community-cards.show { min-height: 72px; }
+
+.community-cards .card {
+  width: 50px;
+  height: 72px;
+}
+
+.community-cards .card .rank { font-size: 22px; }
+.community-cards .card .suit { font-size: 18px; }
+.community-cards .card .corner { font-size: 9px; }
+.community-cards .card .corner-br { font-size: 9px; }
+
+/* Action Buttons */
+.actions {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0 16px;
+  width: 100%;
+  max-width: 400px;
+  justify-content: center;
+}
+
+.action-btn {
+  flex: 1;
+  padding: 16px 8px;
+  border: none;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.action-btn:active { transform: scale(0.95); }
+
+.btn-fold { background: #555; color: #eee; }
+.btn-fold:hover { background: #666; }
+.btn-call { background: #1976d2; color: #fff; }
+.btn-call:hover { background: #1e88e5; }
+.btn-raise { background: #e53935; color: #fff; }
+.btn-raise:hover { background: #ef5350; }
+
+.actions.disabled .action-btn {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Result Overlay */
+.result-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 100;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.result-overlay.show { display: flex; }
+
+.result-icon {
+  font-size: 56px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.result-icon.correct { background: var(--correct); color: #fff; }
+.result-icon.wrong { background: var(--wrong); color: #fff; }
+.result-icon.neutral { background: #555; color: var(--gold); }
+
+.result-text {
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.result-explanation {
+  font-size: 15px;
+  color: #ccc;
+  text-align: center;
+  max-width: 340px;
+  line-height: 1.5;
+}
+
+.result-equity {
+  font-size: 16px;
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.flop-label {
+  font-size: 13px;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 6px;
+}
+
+.result-flop {
+  display: flex;
+  gap: 6px;
+}
+
+.result-flop .card {
+  width: 52px;
+  height: 74px;
+}
+
+.result-flop .card .rank { font-size: 22px; }
+.result-flop .card .suit { font-size: 18px; }
+.result-flop .card .corner { font-size: 9px; }
+.result-flop .card .corner-br { font-size: 9px; }
+
+.next-btn {
+  margin-top: 8px;
+  padding: 14px 40px;
+  border: none;
+  border-radius: 12px;
+  background: var(--gold);
+  color: #111;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.next-btn:active { transform: scale(0.95); }
+
+.streak-display {
+  font-size: 13px;
+  color: #aaa;
+}
+
+/* Hand notation */
+.hand-notation {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  text-align: center;
+}
+
+/* Showdown hands list */
+.showdown-list {
+  text-align: left;
+  font-size: 13px;
+  color: #ccc;
+  line-height: 1.8;
+  max-width: 340px;
+}
+.showdown-list .winner { color: var(--gold); font-weight: 700; }
+
+@media (max-width: 480px) {
+  .top-bar { padding: 4px 6px; gap: 4px; }
+  .stats { gap: 8px; }
+  .stat-value { font-size: 15px; }
+  .stat-label { font-size: 9px; }
+  .toggles { gap: 4px; }
+  .table-toggle button, .mode-toggle button { padding: 4px 8px; font-size: 11px; }
+  .action-btn { font-size: 14px; padding: 12px 6px; letter-spacing: 0; }
+  .card { width: 56px; height: 80px; }
+  .card .rank { font-size: 24px; }
+  .card .suit { font-size: 20px; }
+  .seat { width: 42px; height: 42px; }
+  .seat .pos-label { font-size: 8px; }
+  .seat .chip-count { font-size: 6px; }
+  .table-container { width: min(95vw, 380px); height: min(50vw, 220px); }
+  .pos-btn { padding: 6px 10px; font-size: 11px; }
+  .hand-notation { font-size: 14px; }
+  .equity-display { font-size: 12px; }
+  .equity-display .equity-value { font-size: 18px; }
+}
+
+@media (max-width: 360px) {
+  .table-toggle button, .mode-toggle button { padding: 3px 6px; font-size: 10px; }
+  .stat-value { font-size: 13px; }
+  .card { width: 48px; height: 70px; }
+  .card .rank { font-size: 20px; }
+  .card .suit { font-size: 18px; }
+  .card .corner, .card .corner-br { font-size: 8px; }
+  .seat { width: 36px; height: 36px; }
+  .seat .pos-label { font-size: 7px; }
+  .table-container { height: min(55vw, 200px); }
+  .action-btn { font-size: 12px; padding: 10px 4px; }
+}
+</style>
+</head>
+<body>
+
+<noscript>
+  <div style="background:#e53935;color:#fff;padding:16px;text-align:center;font-size:16px;">
+    JavaScript is not running. Open this file in Safari: tap Share → Open in Safari.
+  </div>
+</noscript>
+
+<div class="top-bar">
+  <div class="stats" id="statsBar">
+    <div class="stat-item">
+      <span class="stat-label">Score</span>
+      <span class="stat-value" id="score">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Round</span>
+      <span class="stat-value" id="round">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Accuracy</span>
+      <span class="stat-value" id="accuracy">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Streak</span>
+      <span class="stat-value" id="streak">0</span>
+    </div>
+  </div>
+  <div class="toggles">
+    <div class="mode-toggle">
+      <button class="active" id="btnTrainer" onclick="setMode('trainer')">Trainer</button>
+      <button id="btnLookup" onclick="setMode('lookup')">Lookup</button>
+      <button id="btnRealPlay" onclick="setMode('realplay')">Real Play</button>
+    </div>
+    <div class="table-toggle">
+      <button class="active" id="btn6max" onclick="setTableSize(6)">6-Max</button>
+      <button id="btn9max" onclick="setTableSize(9)">9-Max</button>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="table-container" id="tableContainer">
+    <div class="table-felt"></div>
+    <div class="pot-display" id="potDisplay">
+      <div class="pot-label">Pot</div>
+      <div id="potAmount">0</div>
+    </div>
+  </div>
+
+  <div class="position-picker" id="positionPicker"></div>
+
+  <div class="hand-notation" id="handNotation"></div>
+
+  <div class="player-cards" id="playerCards"></div>
+
+  <div class="equity-display" id="equityDisplay"></div>
+
+  <div class="community-cards" id="communityCards"></div>
+
+  <div class="actions" id="actions">
+    <button class="action-btn btn-fold" id="btnFold" onclick="makeDecision('fold')">Fold</button>
+    <button class="action-btn btn-call" id="btnCall" onclick="makeDecision('call')">Call</button>
+    <button class="action-btn btn-raise" id="btnRaise" onclick="makeDecision('raise')">Raise</button>
+  </div>
+</div>
+
+<div class="result-overlay" id="resultOverlay">
+  <div class="result-icon" id="resultIcon"></div>
+  <div class="result-text" id="resultText"></div>
+  <div class="result-explanation" id="resultExplanation"></div>
+  <div class="result-equity" id="resultEquity"></div>
+  <div class="flop-label" id="flopLabel"></div>
+  <div class="result-flop" id="resultFlop"></div>
+  <div class="result-equity" id="postFlopEquity"></div>
+  <div class="showdown-list" id="showdownList"></div>
+  <button class="next-btn" id="nextBtn" onclick="nextHand()">Next Hand</button>
+</div>
+
+<script>
+// ===== CONSTANTS =====
+const SUITS = ['♠','♥','♦','♣'];
+const SUIT_NAMES = ['s','h','d','c'];
+const RANKS = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
+const RANK_VALUES = {2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9,T:10,J:11,Q:12,K:13,A:14};
+
+const POSITIONS_6 = ['UTG','MP','CO','BTN','SB','BB'];
+const POSITIONS_9 = ['UTG','UTG+1','MP','MP+1','HJ','CO','BTN','SB','BB'];
+
+const SEAT_COORDS_6 = [
+  {x:20, y:92},
+  {x:5,  y:45},
+  {x:25, y:5},
+  {x:75, y:5},
+  {x:95, y:45},
+  {x:80, y:92},
+];
+
+const SEAT_COORDS_9 = [
+  {x:25, y:95},
+  {x:8,  y:75},
+  {x:3,  y:40},
+  {x:15, y:8},
+  {x:40, y:0},
+  {x:65, y:0},
+  {x:85, y:8},
+  {x:97, y:45},
+  {x:80, y:95},
+];
+
+const BTN_OFFSET = {dx: 0, dy: 18};
+
+// ===== PRE-FLOP EQUITY TABLE =====
+const EQUITY = {
+  'AA':85,'KK':82,'QQ':80,'JJ':77,'TT':75,'99':72,'88':69,'77':66,'66':63,'55':60,'44':57,'33':54,'22':50,
+  'AKs':67,'AQs':66,'AJs':65,'ATs':64,'A9s':62,'A8s':61,'A7s':60,'A6s':59,'A5s':60,'A4s':59,'A3s':58,'A2s':57,
+  'AKo':65,'AQo':64,'AJo':63,'ATo':62,'A9o':60,'A8o':59,'A7o':58,'A6o':56,'A5o':57,'A4o':56,'A3o':55,'A2o':54,
+  'KQs':63,'KJs':62,'KTs':61,'K9s':59,'K8s':57,'K7s':56,'K6s':55,'K5s':54,'K4s':53,'K3s':52,'K2s':51,
+  'KQo':61,'KJo':60,'KTo':59,'K9o':57,'K8o':55,'K7o':54,'K6o':53,'K5o':52,'K4o':51,'K3o':50,'K2o':49,
+  'QJs':60,'QTs':59,'Q9s':57,'Q8s':55,'Q7s':53,'Q6s':52,'Q5s':51,'Q4s':50,'Q3s':49,'Q2s':48,
+  'QJo':58,'QTo':57,'Q9o':55,'Q8o':52,'Q7o':50,'Q6o':49,'Q5o':48,'Q4o':47,'Q3o':46,'Q2o':45,
+  'JTs':57,'J9s':55,'J8s':53,'J7s':51,'J6s':49,'J5s':48,'J4s':47,'J3s':46,'J2s':45,
+  'JTo':55,'J9o':53,'J8o':50,'J7o':48,'J6o':46,'J5o':45,'J4o':44,'J3o':43,'J2o':42,
+  'T9s':54,'T8s':52,'T7s':50,'T6s':48,'T5s':46,'T4s':45,'T3s':44,'T2s':43,
+  'T9o':52,'T8o':49,'T7o':47,'T6o':44,'T5o':43,'T4o':42,'T3o':41,'T2o':40,
+  '98s':51,'97s':49,'96s':47,'95s':45,'94s':43,'93s':42,'92s':41,
+  '98o':49,'97o':46,'96o':44,'95o':42,'94o':40,'93o':39,'92o':38,
+  '87s':49,'86s':47,'85s':45,'84s':42,'83s':40,'82s':39,
+  '87o':46,'86o':44,'85o':41,'84o':39,'83o':37,'82o':36,
+  '76s':47,'75s':45,'74s':42,'73s':40,'72s':38,
+  '76o':44,'75o':41,'74o':39,'73o':37,'72o':35,
+  '65s':46,'64s':43,'63s':41,'62s':39,
+  '65o':43,'64o':40,'63o':38,'62o':36,
+  '54s':44,'53s':42,'52s':40,
+  '54o':41,'53o':39,'52o':37,
+  '43s':41,'42s':39,
+  '43o':38,'42o':36,
+  '32s':38,
+  '32o':35
+};
+
+// ===== HAND RANGES BY POSITION =====
+const RANGES = {
+  6: {
+    'UTG': {
+      raise: ['AA','KK','QQ','JJ','TT','99','AKs','AQs','AJs','ATs','AKo','AQo','KQs'],
+      call:  ['88','77','AJo','ATo','KJs','KTs','QJs','JTs']
+    },
+    'MP': {
+      raise: ['AA','KK','QQ','JJ','TT','99','88','AKs','AQs','AJs','ATs','A9s','AKo','AQo','AJo','KQs','KJs','QJs'],
+      call:  ['77','66','ATo','KTs','KQo','QTs','JTs','T9s']
+    },
+    'CO': {
+      raise: ['AA','KK','QQ','JJ','TT','99','88','77','66','AKs','AQs','AJs','ATs','A9s','A8s','A7s','A5s','A4s','AKo','AQo','AJo','ATo','KQs','KJs','KTs','K9s','QJs','QTs','JTs','T9s'],
+      call:  ['55','44','A6s','A3s','A2s','A9o','KQo','KJo','K8s','Q9s','J9s','98s','87s','76s']
+    },
+    'BTN': {
+      raise: ['AA','KK','QQ','JJ','TT','99','88','77','66','55','44','33','AKs','AQs','AJs','ATs','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s','AKo','AQo','AJo','ATo','A9o','A8o','KQs','KJs','KTs','K9s','K8s','K7s','KQo','KJo','KTo','QJs','QTs','Q9s','Q8s','JTs','J9s','J8s','T9s','T8s','98s','97s','87s','86s','76s','75s','65s','64s','54s'],
+      call:  ['22','A7o','A6o','A5o','K9o','K6s','Q7s','J7s','T7s','96s','85s','74s','53s','43s']
+    },
+    'SB': {
+      raise: ['AA','KK','QQ','JJ','TT','99','88','77','66','55','AKs','AQs','AJs','ATs','A9s','A8s','A5s','A4s','AKo','AQo','AJo','ATo','KQs','KJs','KTs','KQo','KJo','QJs','QTs','JTs','T9s'],
+      call:  ['44','33','22','A7s','A6s','A3s','A2s','A9o','A8o','KTo','K9s','K8s','Q9s','J9s','98s','87s','76s','65s','54s']
+    },
+    'BB': {
+      raise: ['AA','KK','QQ','JJ','TT','99','AKs','AQs','AJs','AKo','AQo'],
+      call:  ['88','77','66','55','44','33','22','ATs','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s','AJo','ATo','A9o','A8o','A7o','A6o','A5o','KQs','KJs','KTs','K9s','K8s','K7s','K6s','K5s','KQo','KJo','KTo','K9o','QJs','QTs','Q9s','Q8s','QJo','QTo','JTs','J9s','J8s','JTo','J9o','T9s','T8s','T9o','98s','97s','98o','87s','86s','76s','75s','65s','64s','54s','53s','43s']
+    }
+  },
+  9: {
+    'UTG': {
+      raise: ['AA','KK','QQ','JJ','TT','AKs','AQs','AJs','AKo'],
+      call:  ['99','88','ATs','AQo','KQs']
+    },
+    'UTG+1': {
+      raise: ['AA','KK','QQ','JJ','TT','99','AKs','AQs','AJs','AKo','AQo'],
+      call:  ['88','77','ATs','KQs','AJo']
+    },
+    'MP': {
+      raise: ['AA','KK','QQ','JJ','TT','99','88','AKs','AQs','AJs','ATs','AKo','AQo','AJo','KQs'],
+      call:  ['77','66','A9s','KJs','QJs','ATo']
+    },
+    'MP+1': {
+      raise: ['AA','KK','QQ','JJ','TT','99','88','77','AKs','AQs','AJs','ATs','A9s','AKo','AQo','AJo','KQs','KJs','QJs'],
+      call:  ['66','55','ATo','KTs','KQo','QTs','JTs']
+    },
+    'HJ': {
+      raise: ['AA','KK','QQ','JJ','TT','99','88','77','66','AKs','AQs','AJs','ATs','A9s','A8s','AKo','AQo','AJo','ATo','KQs','KJs','KTs','QJs','QTs','JTs'],
+      call:  ['55','44','A7s','A5s','A4s','KQo','K9s','Q9s','J9s','T9s','98s']
+    },
+    'CO': {
+      raise: ['AA','KK','QQ','JJ','TT','99','88','77','66','55','AKs','AQs','AJs','ATs','A9s','A8s','A7s','A5s','A4s','AKo','AQo','AJo','ATo','A9o','KQs','KJs','KTs','K9s','KQo','KJo','QJs','QTs','Q9s','JTs','J9s','T9s','98s','87s','76s'],
+      call:  ['44','33','A6s','A3s','A2s','A8o','KTo','K8s','Q8s','J8s','T8s','97s','86s','75s','65s','54s']
+    },
+    'BTN': {
+      raise: ['AA','KK','QQ','JJ','TT','99','88','77','66','55','44','33','22','AKs','AQs','AJs','ATs','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s','AKo','AQo','AJo','ATo','A9o','A8o','A7o','KQs','KJs','KTs','K9s','K8s','K7s','K6s','KQo','KJo','KTo','K9o','QJs','QTs','Q9s','Q8s','Q7s','QJo','QTo','JTs','J9s','J8s','J7s','JTo','T9s','T8s','T7s','98s','97s','96s','87s','86s','76s','75s','65s','64s','54s','53s','43s'],
+      call:  ['A6o','A5o','K5s','Q6s','J6s','T6s','95s','85s','74s','42s','32s']
+    },
+    'SB': {
+      raise: ['AA','KK','QQ','JJ','TT','99','88','77','66','55','AKs','AQs','AJs','ATs','A9s','A8s','A5s','A4s','AKo','AQo','AJo','ATo','KQs','KJs','KTs','KQo','KJo','QJs','QTs','JTs','T9s'],
+      call:  ['44','33','22','A7s','A6s','A3s','A2s','A9o','A8o','KTo','K9s','K8s','Q9s','J9s','98s','87s','76s','65s','54s']
+    },
+    'BB': {
+      raise: ['AA','KK','QQ','JJ','TT','99','AKs','AQs','AJs','AKo','AQo'],
+      call:  ['88','77','66','55','44','33','22','ATs','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s','AJo','ATo','A9o','A8o','A7o','A6o','A5o','KQs','KJs','KTs','K9s','K8s','K7s','K6s','K5s','KQo','KJo','KTo','K9o','QJs','QTs','Q9s','Q8s','QJo','QTo','Q9o','JTs','J9s','J8s','JTo','J9o','T9s','T8s','T9o','98s','97s','98o','87s','86s','76s','75s','65s','64s','54s','53s','43s']
+    }
+  }
+};
+
+// ===== GAME STATE =====
+let gameMode = 'trainer'; // 'trainer', 'lookup', 'realplay'
+let tableSize = 6;
+let deck = [];
+let playerCards = [];
+let flopCards = [];
+let playerPosition = '';
+let playerPositionIndex = 0;
+let score = 0;
+let roundNum = 0;
+let correctCount = 0;
+let currentStreak = 0;
+let bestStreak = 0;
+let correctAction = '';
+let handEquity = 0;
+let handNotation = '';
+
+// ===== REAL PLAY STATE =====
+let rpChips = [];         // chip count per seat
+let rpActive = [];        // whether each seat is still in the game
+let rpInHand = [];        // whether each seat is in current hand
+let rpBtnIndex = 0;       // which seat has the button
+let rpPot = 0;
+let rpBets = [];          // current bet per seat this round
+let rpCurrentBet = 0;     // highest bet on the table
+let rpAICards = [];       // 2 cards per AI seat
+let rpAIActions = [];     // 'fold'|'call'|'raise'|null per seat
+let rpHandNum = 0;
+let rpPhase = '';         // 'waiting', 'preflop', 'flop', 'showdown', 'gameover'
+let rpActionQueue = [];   // seats that still need to act
+let rpPlayerActed = false;
+
+const RP_START_CHIPS = 500;
+const RP_SB = 1;
+const RP_BB = 2;
+
+// ===== DECK FUNCTIONS =====
+function createDeck() {
+  const d = [];
+  for (const r of RANKS) {
+    for (let s = 0; s < 4; s++) {
+      d.push({ rank: r, suit: SUITS[s], suitName: SUIT_NAMES[s] });
+    }
+  }
+  return d;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ===== HAND NOTATION =====
+function getHandNotation(c1, c2) {
+  const r1 = RANK_VALUES[c1.rank];
+  const r2 = RANK_VALUES[c2.rank];
+  let high, low;
+  if (r1 >= r2) { high = c1; low = c2; }
+  else { high = c2; low = c1; }
+
+  if (high.rank === low.rank) return high.rank + low.rank;
+  const suited = high.suitName === low.suitName ? 's' : 'o';
+  return high.rank + low.rank + suited;
+}
+
+// ===== CARD HTML =====
+function cardHTML(card, extraClass = '') {
+  const isRed = card.suit === '♥' || card.suit === '♦';
+  const colorClass = isRed ? 'red' : 'black';
+  return `<div class="card ${colorClass} ${extraClass}">
+    <span class="corner"><span>${card.rank}</span><span>${card.suit}</span></span>
+    <span class="rank">${card.rank}</span>
+    <span class="suit">${card.suit}</span>
+    <span class="corner-br"><span>${card.rank}</span><span>${card.suit}</span></span>
+  </div>`;
+}
+
+function cardBackHTML() {
+  return `<div class="card black" style="background:#2244aa;color:#fff;font-size:20px;">
+    <span class="rank" style="font-size:20px;">?</span>
+  </div>`;
+}
+
+// ===== TABLE RENDERING =====
+function renderTable() {
+  const container = document.getElementById('tableContainer');
+  const positions = tableSize === 6 ? POSITIONS_6 : POSITIONS_9;
+  const coords = tableSize === 6 ? SEAT_COORDS_6 : SEAT_COORDS_9;
+
+  container.querySelectorAll('.seat, .btn-marker').forEach(el => el.remove());
+
+  let btnSeatIndex;
+  if (gameMode === 'realplay') {
+    btnSeatIndex = rpBtnIndex;
+  } else {
+    btnSeatIndex = positions.indexOf('BTN');
+  }
+
+  positions.forEach((pos, i) => {
+    const seat = document.createElement('div');
+    seat.className = 'seat' + (i === playerPositionIndex ? ' player' : '');
+
+    if (gameMode === 'realplay') {
+      if (!rpActive[i]) seat.classList.add('busted');
+      else if (!rpInHand[i] && rpPhase !== 'waiting') seat.classList.add('folded');
+    }
+
+    seat.style.left = coords[i].x + '%';
+    seat.style.top = coords[i].y + '%';
+
+    let inner = `<span class="pos-label">${pos}</span>`;
+
+    if (gameMode === 'realplay' && rpActive[i]) {
+      inner += `<span class="chip-count">${rpChips[i]}</span>`;
+    }
+
+    seat.innerHTML = inner;
+
+    // AI action badge
+    if (gameMode === 'realplay' && rpAIActions[i] && i !== playerPositionIndex) {
+      const badge = document.createElement('div');
+      const act = rpAIActions[i];
+      badge.className = 'ai-badge ' +
+        (act === 'fold' ? 'fold-badge' : act === 'call' ? 'call-badge' : 'raise-badge');
+      badge.textContent = act[0].toUpperCase();
+      seat.appendChild(badge);
+    }
+
+    container.appendChild(seat);
+  });
+
+  // Button marker
+  const btnMarker = document.createElement('div');
+  btnMarker.className = 'btn-marker';
+  btnMarker.textContent = 'D';
+  btnMarker.style.left = (coords[btnSeatIndex].x + 5) + '%';
+  btnMarker.style.top = (coords[btnSeatIndex].y + 12) + '%';
+  container.appendChild(btnMarker);
+}
+
+// ===== EQUITY LOOKUP =====
+function getEquity(notation) {
+  return EQUITY[notation] || 40;
+}
+
+// ===== POST-FLOP EQUITY ESTIMATE =====
+function estimatePostFlopEquity(holeCards, communityCards) {
+  let bonus = 0;
+  const allCards = [...holeCards, ...communityCards];
+  const ranks = allCards.map(c => RANK_VALUES[c.rank]);
+  const suits = allCards.map(c => c.suitName);
+
+  const holeRanks = holeCards.map(c => RANK_VALUES[c.rank]);
+  const boardRanks = communityCards.map(c => RANK_VALUES[c.rank]);
+
+  for (const hr of holeRanks) {
+    const boardMatches = boardRanks.filter(br => br === hr).length;
+    if (boardMatches >= 2) bonus += 35;
+    else if (boardMatches === 1) bonus += 15;
+  }
+
+  if (holeRanks[0] === holeRanks[1]) {
+    if (boardRanks.includes(holeRanks[0])) bonus += 30;
+    else bonus += 5;
+  }
+
+  const holeSuits = holeCards.map(c => c.suitName);
+  for (const s of ['s','h','d','c']) {
+    const count = suits.filter(x => x === s).length;
+    const holeCount = holeSuits.filter(x => x === s).length;
+    if (count >= 4 && holeCount >= 1) bonus += 10;
+    if (count >= 5 && holeCount >= 1) bonus += 25;
+  }
+
+  const maxBoard = Math.max(...boardRanks);
+  const overcards = holeRanks.filter(r => r > maxBoard).length;
+  bonus += overcards * 4;
+
+  const sorted = [...new Set(ranks)].sort((a,b) => a - b);
+  for (let i = 0; i <= sorted.length - 4; i++) {
+    if (sorted[i+3] - sorted[i] <= 4) bonus += 5;
+  }
+
+  const base = getEquity(getHandNotation(holeCards[0], holeCards[1]));
+  return Math.min(95, Math.max(10, base + bonus - 10));
+}
+
+// ===== CORRECT ACTION =====
+function getCorrectAction(notation, position) {
+  const ranges = RANGES[tableSize][position];
+  if (!ranges) return 'fold';
+  if (ranges.raise.includes(notation)) return 'raise';
+  if (ranges.call.includes(notation)) return 'call';
+  return 'fold';
+}
+
+// ===== EXPLANATION =====
+function getExplanation(notation, position, correct) {
+  const eq = getEquity(notation);
+
+  let handDesc = '';
+  if (notation.length === 2) handDesc = 'pocket ' + notation;
+  else if (notation.endsWith('s')) handDesc = notation.slice(0,2) + ' suited';
+  else handDesc = notation.slice(0,2) + ' offsuit';
+
+  const rangeDesc = correct === 'raise' ? 'in the opening range' :
+                    correct === 'call'  ? 'a marginal hand' :
+                    'too weak to play';
+
+  const percentile = correct === 'raise' ? 'strong enough to raise' :
+                     correct === 'call'  ? 'worth calling but not raising' :
+                     'not profitable to play';
+
+  return `${handDesc} from ${position} is ${rangeDesc} — ${percentile} (${eq}% equity vs random).`;
+}
+
+// ===== UPDATE STATS =====
+function updateStats() {
+  if (gameMode === 'realplay') {
+    updateRealPlayStats();
+    return;
+  }
+  document.getElementById('score').textContent = Math.round(score);
+  document.getElementById('round').textContent = roundNum;
+  document.getElementById('accuracy').textContent = roundNum > 0 ? Math.round(correctCount / roundNum * 100) + '%' : '—';
+  document.getElementById('streak').textContent = currentStreak;
+}
+
+function updateRealPlayStats() {
+  const statsBar = document.getElementById('statsBar');
+  statsBar.innerHTML = `
+    <div class="stat-item">
+      <span class="stat-label">Chips</span>
+      <span class="stat-value" id="rpChipsDisplay">${rpChips[playerPositionIndex] || 0}</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Pot</span>
+      <span class="stat-value" id="rpPotDisplay">${rpPot}</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Hand #</span>
+      <span class="stat-value">${rpHandNum}</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Players</span>
+      <span class="stat-value">${rpActive.filter(Boolean).length}</span>
+    </div>
+  `;
+}
+
+function restoreTrainerStats() {
+  const statsBar = document.getElementById('statsBar');
+  statsBar.innerHTML = `
+    <div class="stat-item">
+      <span class="stat-label">Score</span>
+      <span class="stat-value" id="score">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Round</span>
+      <span class="stat-value" id="round">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Accuracy</span>
+      <span class="stat-value" id="accuracy">—</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Streak</span>
+      <span class="stat-value" id="streak">0</span>
+    </div>
+  `;
+}
+
+// ===== MODE MANAGEMENT =====
+function setMode(mode) {
+  gameMode = mode;
+  document.getElementById('btnTrainer').classList.toggle('active', mode === 'trainer');
+  document.getElementById('btnLookup').classList.toggle('active', mode === 'lookup');
+  document.getElementById('btnRealPlay').classList.toggle('active', mode === 'realplay');
+
+  document.getElementById('potDisplay').style.display = 'none';
+  document.getElementById('communityCards').innerHTML = '';
+  document.getElementById('communityCards').classList.remove('show');
+
+  if (mode === 'realplay') {
+    initRealPlay();
+  } else {
+    restoreTrainerStats();
+    score = 0; roundNum = 0; correctCount = 0; currentStreak = 0;
+    updateStats();
+    if (mode === 'lookup') {
+      showPositionPicker();
+    } else {
+      hidePositionPicker();
+      dealNewHand();
+    }
+  }
+}
+
+// ===== SET TABLE SIZE =====
+function setTableSize(size) {
+  tableSize = size;
+  document.getElementById('btn6max').classList.toggle('active', size === 6);
+  document.getElementById('btn9max').classList.toggle('active', size === 9);
+
+  if (gameMode === 'realplay') {
+    initRealPlay();
+  } else {
+    score = 0; roundNum = 0; correctCount = 0; currentStreak = 0;
+    updateStats();
+    if (gameMode === 'lookup') {
+      showPositionPicker();
+    } else {
+      dealNewHand();
+    }
+  }
+}
+
+// ===== POSITION PICKER (Lookup mode) =====
+function showPositionPicker() {
+  const picker = document.getElementById('positionPicker');
+  const positions = tableSize === 6 ? POSITIONS_6 : POSITIONS_9;
+  picker.innerHTML = positions.map(p =>
+    `<button class="pos-btn" onclick="pickPosition('${p}')">${p}</button>`
+  ).join('');
+  picker.classList.add('show');
+
+  // Hide cards and actions until position is picked
+  document.getElementById('playerCards').innerHTML = '';
+  document.getElementById('handNotation').textContent = 'Pick your position';
+  document.getElementById('equityDisplay').innerHTML = '';
+  document.getElementById('actions').classList.add('disabled');
+
+  // Show empty table
+  const positions2 = tableSize === 6 ? POSITIONS_6 : POSITIONS_9;
+  playerPositionIndex = -1;
+  renderTable();
+}
+
+function hidePositionPicker() {
+  document.getElementById('positionPicker').classList.remove('show');
+}
+
+function pickPosition(pos) {
+  const positions = tableSize === 6 ? POSITIONS_6 : POSITIONS_9;
+  playerPositionIndex = positions.indexOf(pos);
+  playerPosition = pos;
+  hidePositionPicker();
+  dealLookupHand();
+}
+
+function dealLookupHand() {
+  deck = shuffle(createDeck());
+  playerCards = [deck[0], deck[1]];
+  flopCards = [deck[2], deck[3], deck[4]];
+
+  handNotation = getHandNotation(playerCards[0], playerCards[1]);
+  handEquity = getEquity(handNotation);
+  correctAction = getCorrectAction(handNotation, playerPosition);
+
+  renderTable();
+
+  document.getElementById('handNotation').textContent = handNotation + ' — ' + playerPosition;
+  document.getElementById('playerCards').innerHTML = playerCards.map(c => cardHTML(c)).join('');
+  document.getElementById('equityDisplay').innerHTML = `Pre-flop equity: <span class="equity-value">${handEquity}%</span>`;
+  document.getElementById('actions').classList.remove('disabled');
+
+  // Update action button labels for lookup (same as trainer)
+  document.getElementById('btnFold').textContent = 'Fold';
+  document.getElementById('btnCall').textContent = 'Call';
+  document.getElementById('btnRaise').textContent = 'Raise';
+}
+
+// ===== DEAL NEW HAND (Trainer mode) =====
+function dealNewHand() {
+  if (gameMode === 'lookup') {
+    showPositionPicker();
+    return;
+  }
+  if (gameMode === 'realplay') {
+    dealRealPlayHand();
+    return;
+  }
+
+  deck = shuffle(createDeck());
+  playerCards = [deck[0], deck[1]];
+  flopCards = [deck[2], deck[3], deck[4]];
+
+  const positions = tableSize === 6 ? POSITIONS_6 : POSITIONS_9;
+  playerPositionIndex = Math.floor(Math.random() * positions.length);
+  playerPosition = positions[playerPositionIndex];
+
+  handNotation = getHandNotation(playerCards[0], playerCards[1]);
+  handEquity = getEquity(handNotation);
+  correctAction = getCorrectAction(handNotation, playerPosition);
+
+  renderTable();
+
+  document.getElementById('handNotation').textContent = handNotation + ' — ' + playerPosition;
+  document.getElementById('playerCards').innerHTML = playerCards.map(c => cardHTML(c)).join('');
+  document.getElementById('equityDisplay').innerHTML = `Pre-flop equity: <span class="equity-value">${handEquity}%</span>`;
+  document.getElementById('actions').classList.remove('disabled');
+
+  document.getElementById('btnFold').textContent = 'Fold';
+  document.getElementById('btnCall').textContent = 'Call';
+  document.getElementById('btnRaise').textContent = 'Raise';
+}
+
+// ===== MAKE DECISION =====
+function makeDecision(action) {
+  if (gameMode === 'realplay') {
+    makeRealPlayDecision(action);
+    return;
+  }
+
+  document.getElementById('actions').classList.add('disabled');
+  roundNum++;
+
+  const isCorrect = action === correctAction;
+  if (isCorrect) {
+    score += handEquity;
+    correctCount++;
+    currentStreak++;
+    if (currentStreak > bestStreak) bestStreak = currentStreak;
+  } else {
+    score -= handEquity;
+    currentStreak = 0;
+  }
+
+  updateStats();
+  showResult(action, isCorrect);
+}
+
+// ===== SHOW RESULT (Trainer / Lookup) =====
+function showResult(playerAction, isCorrect) {
+  const overlay = document.getElementById('resultOverlay');
+  const icon = document.getElementById('resultIcon');
+  const text = document.getElementById('resultText');
+  const explanation = document.getElementById('resultExplanation');
+  const equityEl = document.getElementById('resultEquity');
+  const flopContainer = document.getElementById('resultFlop');
+  const flopLabel = document.getElementById('flopLabel');
+  const postFlop = document.getElementById('postFlopEquity');
+  const showdownList = document.getElementById('showdownList');
+
+  icon.className = 'result-icon ' + (isCorrect ? 'correct' : 'wrong');
+  icon.textContent = isCorrect ? '✓' : '✗';
+
+  text.textContent = isCorrect ? 'Correct!' : 'Incorrect';
+  text.style.color = isCorrect ? 'var(--correct)' : 'var(--wrong)';
+
+  const explanationText = getExplanation(handNotation, playerPosition, correctAction);
+  const actionLabel = a => a.charAt(0).toUpperCase() + a.slice(1);
+
+  if (!isCorrect) {
+    explanation.textContent = `You chose ${actionLabel(playerAction)}, correct was ${actionLabel(correctAction)}. ${explanationText}`;
+  } else {
+    explanation.textContent = explanationText;
+  }
+
+  const delta = isCorrect ? '+' + handEquity : '-' + handEquity;
+  equityEl.textContent = `Score: ${delta} points`;
+
+  flopLabel.textContent = 'The Flop';
+  flopContainer.innerHTML = flopCards.map(c => cardHTML(c)).join('');
+
+  const postFlopEq = estimatePostFlopEquity(playerCards, flopCards);
+  postFlop.textContent = `Post-flop equity estimate: ${postFlopEq}%`;
+
+  showdownList.innerHTML = '';
+
+  const nextBtn = document.getElementById('nextBtn');
+  if (gameMode === 'lookup') {
+    nextBtn.textContent = 'Pick Again';
+  } else {
+    nextBtn.textContent = 'Next Hand';
+  }
+  nextBtn.onclick = nextHand;
+
+  overlay.classList.add('show');
+}
+
+// ===== NEXT HAND =====
+function nextHand() {
+  document.getElementById('resultOverlay').classList.remove('show');
+  dealNewHand();
+}
+
+// =============================================
+// ===== REAL PLAY MODE =====
+// =============================================
+
+function initRealPlay() {
+  const positions = tableSize === 6 ? POSITIONS_6 : POSITIONS_9;
+  const n = positions.length;
+
+  rpChips = Array(n).fill(RP_START_CHIPS);
+  rpActive = Array(n).fill(true);
+  rpBtnIndex = positions.indexOf('BTN');
+  rpHandNum = 0;
+  rpPhase = 'waiting';
+
+  // Player is always at a fixed seat; btn rotates
+  playerPositionIndex = 0;
+
+  hidePositionPicker();
+  document.getElementById('communityCards').innerHTML = '';
+  document.getElementById('communityCards').classList.remove('show');
+
+  updateStats();
+  dealRealPlayHand();
+}
+
+function getPositionForSeat(seatIndex) {
+  const positions = tableSize === 6 ? POSITIONS_6 : POSITIONS_9;
+  const n = positions.length;
+  // BTN is at rpBtnIndex; positions are assigned relative to BTN
+  // BTN position name is always 'BTN', SB is next, BB is next, then UTG, etc.
+  const btnPosIdx = positions.indexOf('BTN');
+  const offset = (seatIndex - rpBtnIndex + n) % n;
+  // offset 0 = BTN, 1 = SB, 2 = BB, 3 = UTG, ...
+  // Map offset to position name
+  const posOrder6 = ['BTN','SB','BB','UTG','MP','CO'];
+  const posOrder9 = ['BTN','SB','BB','UTG','UTG+1','MP','MP+1','HJ','CO'];
+  const order = n === 6 ? posOrder6 : posOrder9;
+  return order[offset] || 'UTG';
+}
+
+function dealRealPlayHand() {
+  const positions = tableSize === 6 ? POSITIONS_6 : POSITIONS_9;
+  const n = positions.length;
+
+  // Check game over
+  if (!rpActive[playerPositionIndex]) {
+    showGameOver(false);
+    return;
+  }
+  const activePlayers = rpActive.filter(Boolean).length;
+  if (activePlayers <= 1) {
+    showGameOver(rpActive[playerPositionIndex]);
+    return;
+  }
+
+  rpHandNum++;
+  rpPhase = 'preflop';
+  rpPot = 0;
+  rpBets = Array(n).fill(0);
+  rpCurrentBet = 0;
+  rpAIActions = Array(n).fill(null);
+  rpInHand = rpActive.map(a => a);
+  rpPlayerActed = false;
+
+  // Advance button among active players
+  if (rpHandNum > 1) {
+    do {
+      rpBtnIndex = (rpBtnIndex + 1) % n;
+    } while (!rpActive[rpBtnIndex]);
+  }
+
+  // Deal cards
+  deck = shuffle(createDeck());
+  let cardIdx = 0;
+
+  // Deal 2 cards to each active seat
+  rpAICards = Array(n).fill(null);
+  for (let i = 0; i < n; i++) {
+    if (rpActive[i]) {
+      if (i === playerPositionIndex) {
+        playerCards = [deck[cardIdx], deck[cardIdx + 1]];
+      } else {
+        rpAICards[i] = [deck[cardIdx], deck[cardIdx + 1]];
+      }
+      cardIdx += 2;
+    }
+  }
+
+  flopCards = [deck[cardIdx], deck[cardIdx + 1], deck[cardIdx + 2]];
+
+  // Post blinds
+  const sbSeat = findNextActive(rpBtnIndex);
+  const bbSeat = findNextActive(sbSeat);
+
+  postBlind(sbSeat, RP_SB);
+  postBlind(bbSeat, RP_BB);
+  rpCurrentBet = RP_BB;
+
+  // Determine player's position name
+  playerPosition = getPositionForSeat(playerPositionIndex);
+  handNotation = getHandNotation(playerCards[0], playerCards[1]);
+  handEquity = getEquity(handNotation);
+
+  // Update pot display
+  document.getElementById('potDisplay').style.display = 'block';
+  document.getElementById('potAmount').textContent = rpPot;
+
+  renderTable();
+  updateStats();
+
+  document.getElementById('handNotation').textContent = handNotation + ' — ' + playerPosition;
+  document.getElementById('playerCards').innerHTML = playerCards.map(c => cardHTML(c)).join('');
+  document.getElementById('equityDisplay').innerHTML = `Pre-flop equity: <span class="equity-value">${handEquity}%</span>`;
+  document.getElementById('communityCards').innerHTML = '';
+  document.getElementById('communityCards').classList.remove('show');
+
+  // Build action order: start from player after BB, going clockwise
+  const firstToAct = findNextActive(bbSeat);
+  rpActionQueue = buildActionOrder(firstToAct);
+
+  // Process AI actions before player
+  processPreFlopActions();
+}
+
+function findNextActive(fromSeat) {
+  const n = rpActive.length;
+  let s = (fromSeat + 1) % n;
+  let count = 0;
+  while (!rpActive[s] && count < n) {
+    s = (s + 1) % n;
+    count++;
+  }
+  return s;
+}
+
+function buildActionOrder(startSeat) {
+  const n = rpActive.length;
+  const order = [];
+  let s = startSeat;
+  for (let i = 0; i < n; i++) {
+    if (rpInHand[s]) {
+      order.push(s);
+    }
+    s = (s + 1) % n;
+  }
+  return order;
+}
+
+function postBlind(seat, amount) {
+  const actual = Math.min(amount, rpChips[seat]);
+  rpChips[seat] -= actual;
+  rpBets[seat] = actual;
+  rpPot += actual;
+}
+
+function processPreFlopActions() {
+  for (let safety = 0; safety < 50; safety++) {
+    // Process actions in queue until we hit the player or queue is empty
+    while (rpActionQueue.length > 0) {
+      const seat = rpActionQueue[0];
+
+      if (seat === playerPositionIndex && rpInHand[playerPositionIndex]) {
+        // Player's turn
+        showPlayerAction();
+        return;
+      }
+
+      // AI acts (or skip if player folded)
+      rpActionQueue.shift();
+      if (rpInHand[seat]) aiAct(seat);
+
+      // Check if only one player left
+      if (rpInHand.filter(Boolean).length <= 1) {
+        awardPotToSingleWinner();
+        return;
+      }
+
+      // Update display
+      renderTable();
+      document.getElementById('potAmount').textContent = rpPot;
+      updateStats();
+    }
+
+    // All actions done for this round — check if another round is needed
+    if (needsAnotherRound()) {
+      const firstUnmatched = findFirstUnmatched();
+      rpActionQueue = buildActionOrderForRound(firstUnmatched);
+      rpPlayerActed = false;
+      continue; // iterate instead of recurse
+    }
+
+    // Pre-flop action complete, go to flop
+    goToFlop();
+    return;
+  }
+
+  // Safety fallback — should never reach here
+  goToFlop();
+}
+
+function needsAnotherRound() {
+  for (let i = 0; i < rpInHand.length; i++) {
+    if (rpInHand[i] && rpBets[i] < rpCurrentBet) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function findFirstUnmatched() {
+  const n = rpInHand.length;
+  // Start from after the last raiser or from SB
+  for (let i = 0; i < n; i++) {
+    if (rpInHand[i] && rpBets[i] < rpCurrentBet) {
+      return i;
+    }
+  }
+  return 0;
+}
+
+function buildActionOrderForRound(startSeat) {
+  const n = rpInHand.length;
+  const order = [];
+  let s = startSeat;
+  for (let i = 0; i < n; i++) {
+    if (rpInHand[s] && rpBets[s] < rpCurrentBet) {
+      order.push(s);
+    }
+    s = (s + 1) % n;
+  }
+  return order;
+}
+
+function aiAct(seat) {
+  if (!rpInHand[seat] || !rpAICards[seat]) return;
+
+  const aiNotation = getHandNotation(rpAICards[seat][0], rpAICards[seat][1]);
+  const aiPosition = getPositionForSeat(seat);
+  let aiCorrect = getCorrectAction(aiNotation, aiPosition);
+
+  // Prevent re-raising: if AI already raised, downgrade to call
+  if (aiCorrect === 'raise' && rpAIActions[seat] === 'raise') {
+    aiCorrect = 'call';
+  }
+
+  const callAmount = rpCurrentBet - rpBets[seat];
+
+  if (aiCorrect === 'fold' && callAmount > 0) {
+    rpAIActions[seat] = 'fold';
+    rpInHand[seat] = false;
+  } else if (aiCorrect === 'raise' && callAmount >= 0) {
+    const raiseTotal = Math.max(rpCurrentBet * 3, RP_BB * 3);
+    const raiseAmount = raiseTotal - rpBets[seat];
+    const actual = Math.min(raiseAmount, rpChips[seat]);
+    rpChips[seat] -= actual;
+    rpPot += actual;
+    rpBets[seat] += actual;
+    if (rpBets[seat] > rpCurrentBet) rpCurrentBet = rpBets[seat];
+    rpAIActions[seat] = 'raise';
+  } else {
+    // Call / Check
+    if (callAmount > 0) {
+      const actual = Math.min(callAmount, rpChips[seat]);
+      rpChips[seat] -= actual;
+      rpPot += actual;
+      rpBets[seat] += actual;
+    }
+    rpAIActions[seat] = 'call';
+  }
+}
+
+function showPlayerAction() {
+  const callAmount = rpCurrentBet - rpBets[playerPositionIndex];
+  const raiseTotal = Math.max(rpCurrentBet * 3, RP_BB * 3);
+  const raiseAmount = raiseTotal - rpBets[playerPositionIndex];
+
+  document.getElementById('btnFold').textContent = 'Fold';
+  document.getElementById('btnCall').textContent = callAmount <= 0 ? 'Check' : `Call ${callAmount}`;
+  document.getElementById('btnRaise').textContent = `Raise ${Math.min(raiseAmount, rpChips[playerPositionIndex])}`;
+  document.getElementById('actions').classList.remove('disabled');
+}
+
+function makeRealPlayDecision(action) {
+  document.getElementById('actions').classList.add('disabled');
+
+  const callAmount = rpCurrentBet - rpBets[playerPositionIndex];
+  const raiseTotal = Math.max(rpCurrentBet * 3, RP_BB * 3);
+  const raiseAmount = raiseTotal - rpBets[playerPositionIndex];
+
+  if (action === 'fold') {
+    rpInHand[playerPositionIndex] = false;
+    rpAIActions[playerPositionIndex] = 'fold';
+  } else if (action === 'raise') {
+    const actual = Math.min(raiseAmount, rpChips[playerPositionIndex]);
+    rpChips[playerPositionIndex] -= actual;
+    rpPot += actual;
+    rpBets[playerPositionIndex] += actual;
+    if (rpBets[playerPositionIndex] > rpCurrentBet) rpCurrentBet = rpBets[playerPositionIndex];
+    rpAIActions[playerPositionIndex] = 'raise';
+  } else {
+    // Call / Check
+    if (callAmount > 0) {
+      const actual = Math.min(callAmount, rpChips[playerPositionIndex]);
+      rpChips[playerPositionIndex] -= actual;
+      rpPot += actual;
+      rpBets[playerPositionIndex] += actual;
+    }
+    rpAIActions[playerPositionIndex] = 'call';
+  }
+
+  rpPlayerActed = true;
+
+  // Remove player from action queue
+  rpActionQueue.shift();
+
+  renderTable();
+  document.getElementById('potAmount').textContent = rpPot;
+  updateStats();
+
+  // Check if only one player left
+  const playersInHand = rpInHand.filter(Boolean).length;
+  if (playersInHand <= 1) {
+    // Everyone folded to one player
+    awardPotToSingleWinner();
+    return;
+  }
+
+  // Continue processing remaining actions
+  processPreFlopActions();
+}
+
+function awardPotToSingleWinner() {
+  const winner = rpInHand.indexOf(true);
+  rpChips[winner] += rpPot;
+
+  const positions = tableSize === 6 ? POSITIONS_6 : POSITIONS_9;
+  const isPlayer = winner === playerPositionIndex;
+
+  // Show result
+  const overlay = document.getElementById('resultOverlay');
+  const icon = document.getElementById('resultIcon');
+  const text = document.getElementById('resultText');
+  const explanation = document.getElementById('resultExplanation');
+  const equityEl = document.getElementById('resultEquity');
+  const flopContainer = document.getElementById('resultFlop');
+  const flopLabel = document.getElementById('flopLabel');
+  const postFlop = document.getElementById('postFlopEquity');
+  const showdownList = document.getElementById('showdownList');
+
+  icon.className = 'result-icon neutral';
+  icon.textContent = isPlayer ? '✓' : '—';
+
+  text.textContent = isPlayer ? 'You win the pot!' : `${getPositionForSeat(winner)} wins`;
+  text.style.color = isPlayer ? 'var(--correct)' : 'var(--gold)';
+
+  explanation.textContent = 'Everyone else folded.';
+  equityEl.textContent = `Pot: ${rpPot} chips`;
+
+  flopLabel.textContent = '';
+  flopContainer.innerHTML = '';
+  postFlop.textContent = '';
+  showdownList.innerHTML = '';
+
+  // Bust check
+  bustCheck();
+
+  const nextBtn = document.getElementById('nextBtn');
+  if (isGameOver()) {
+    nextBtn.textContent = 'Game Over';
+    nextBtn.onclick = () => {
+      overlay.classList.remove('show');
+      showGameOver(rpActive[playerPositionIndex]);
+    };
+  } else {
+    nextBtn.textContent = 'Next Hand';
+    nextBtn.onclick = () => {
+      overlay.classList.remove('show');
+      dealRealPlayHand();
+    };
+  }
+
+  rpPot = 0;
+  overlay.classList.add('show');
+}
+
+function goToFlop() {
+  rpPhase = 'flop';
+
+  // Show community cards
+  const cc = document.getElementById('communityCards');
+  cc.innerHTML = flopCards.map(c => cardHTML(c)).join('');
+  cc.classList.add('show');
+
+  // Simplified showdown
+  setTimeout(() => doShowdown(), 800);
+}
+
+// ===== HAND EVALUATION (5-card) =====
+function evaluateHand(holeCards, board) {
+  const all = [...holeCards, ...board];
+  // Get best 5-card hand from 5 cards (2 hole + 3 board)
+  // Since we only have 5 cards total, evaluate them directly
+  const ranks = all.map(c => RANK_VALUES[c.rank]).sort((a,b) => b - a);
+  const suits = all.map(c => c.suitName);
+
+  const isFlush = suits.every(s => s === suits[0]);
+
+  const uniqueRanks = [...new Set(ranks)].sort((a,b) => b - a);
+
+  // Check straight
+  let isStraight = false;
+  let straightHigh = 0;
+  if (uniqueRanks.length === 5) {
+    if (uniqueRanks[0] - uniqueRanks[4] === 4) {
+      isStraight = true;
+      straightHigh = uniqueRanks[0];
+    }
+    // Wheel: A-2-3-4-5
+    if (uniqueRanks[0] === 14 && uniqueRanks[1] === 5 && uniqueRanks[2] === 4 && uniqueRanks[3] === 3 && uniqueRanks[4] === 2) {
+      isStraight = true;
+      straightHigh = 5;
+    }
+  }
+
+  // Count rank occurrences
+  const counts = {};
+  for (const r of ranks) counts[r] = (counts[r] || 0) + 1;
+  const groups = Object.entries(counts).map(([r, c]) => ({rank: +r, count: c}))
+    .sort((a,b) => b.count - a.count || b.rank - a.rank);
+
+  // Straight flush
+  if (isFlush && isStraight) return {score: 8000 + straightHigh, name: 'Straight Flush'};
+
+  // Four of a kind
+  if (groups[0].count === 4) return {score: 7000 + groups[0].rank, name: 'Four of a Kind'};
+
+  // Full house
+  if (groups[0].count === 3 && groups[1].count === 2) return {score: 6000 + groups[0].rank * 15 + groups[1].rank, name: 'Full House'};
+
+  // Flush
+  if (isFlush) return {score: 5000 + ranks[0], name: 'Flush'};
+
+  // Straight
+  if (isStraight) return {score: 4000 + straightHigh, name: 'Straight'};
+
+  // Three of a kind
+  if (groups[0].count === 3) return {score: 3000 + groups[0].rank, name: 'Three of a Kind'};
+
+  // Two pair
+  if (groups[0].count === 2 && groups[1].count === 2) {
+    const highPair = Math.max(groups[0].rank, groups[1].rank);
+    const lowPair = Math.min(groups[0].rank, groups[1].rank);
+    return {score: 2000 + highPair * 15 + lowPair, name: 'Two Pair'};
+  }
+
+  // One pair
+  if (groups[0].count === 2) return {score: 1000 + groups[0].rank, name: 'Pair'};
+
+  // High card
+  return {score: ranks[0], name: 'High Card'};
+}
+
+function doShowdown() {
+  const positions = tableSize === 6 ? POSITIONS_6 : POSITIONS_9;
+  const n = positions.length;
+
+  // Evaluate all hands still in
+  let bestScore = -1;
+  let bestSeat = -1;
+  const results = [];
+
+  for (let i = 0; i < n; i++) {
+    if (!rpInHand[i]) continue;
+
+    let hole;
+    if (i === playerPositionIndex) {
+      hole = playerCards;
+    } else {
+      hole = rpAICards[i];
+    }
+
+    const eval_ = evaluateHand(hole, flopCards);
+    results.push({seat: i, hole, eval: eval_, pos: getPositionForSeat(i)});
+
+    if (eval_.score > bestScore) {
+      bestScore = eval_.score;
+      bestSeat = i;
+    }
+  }
+
+  // Award pot
+  rpChips[bestSeat] += rpPot;
+
+  const isPlayerWin = bestSeat === playerPositionIndex;
+
+  // Show overlay
+  const overlay = document.getElementById('resultOverlay');
+  const icon = document.getElementById('resultIcon');
+  const text = document.getElementById('resultText');
+  const explanation = document.getElementById('resultExplanation');
+  const equityEl = document.getElementById('resultEquity');
+  const flopContainer = document.getElementById('resultFlop');
+  const flopLabel = document.getElementById('flopLabel');
+  const postFlop = document.getElementById('postFlopEquity');
+  const showdownList = document.getElementById('showdownList');
+
+  icon.className = 'result-icon ' + (isPlayerWin ? 'correct' : 'wrong');
+  icon.textContent = isPlayerWin ? '✓' : '✗';
+
+  const winnerResult = results.find(r => r.seat === bestSeat);
+  text.textContent = isPlayerWin ? `You win with ${winnerResult.eval.name}!` : `${winnerResult.pos} wins with ${winnerResult.eval.name}`;
+  text.style.color = isPlayerWin ? 'var(--correct)' : 'var(--wrong)';
+
+  explanation.textContent = '';
+  equityEl.textContent = `Pot: ${rpPot} chips`;
+
+  flopLabel.textContent = 'Community Cards';
+  flopContainer.innerHTML = flopCards.map(c => cardHTML(c)).join('');
+  postFlop.textContent = '';
+
+  // Show all hands
+  let showdownHTML = '';
+  for (const r of results) {
+    const isWinner = r.seat === bestSeat;
+    const cards = `${r.hole[0].rank}${r.hole[0].suit} ${r.hole[1].rank}${r.hole[1].suit}`;
+    const label = r.seat === playerPositionIndex ? 'You' : r.pos;
+    showdownHTML += `<div class="${isWinner ? 'winner' : ''}">${isWinner ? '★ ' : ''}${label}: ${cards} — ${r.eval.name}</div>`;
+  }
+  showdownList.innerHTML = showdownHTML;
+
+  // Bust check
+  bustCheck();
+
+  const nextBtn = document.getElementById('nextBtn');
+  if (isGameOver()) {
+    nextBtn.textContent = 'See Results';
+    nextBtn.onclick = () => {
+      overlay.classList.remove('show');
+      showGameOver(rpActive[playerPositionIndex]);
+    };
+  } else {
+    nextBtn.textContent = 'Next Hand';
+    nextBtn.onclick = () => {
+      overlay.classList.remove('show');
+      rpPot = 0;
+      dealRealPlayHand();
+    };
+  }
+
+  rpPot = 0;
+  overlay.classList.add('show');
+}
+
+function bustCheck() {
+  const n = rpChips.length;
+  for (let i = 0; i < n; i++) {
+    if (rpActive[i] && rpChips[i] <= 0) {
+      rpActive[i] = false;
+    }
+  }
+}
+
+function isGameOver() {
+  if (!rpActive[playerPositionIndex]) return true;
+  return rpActive.filter(Boolean).length <= 1;
+}
+
+function showGameOver(playerWon) {
+  rpPhase = 'gameover';
+
+  const overlay = document.getElementById('resultOverlay');
+  const icon = document.getElementById('resultIcon');
+  const text = document.getElementById('resultText');
+  const explanation = document.getElementById('resultExplanation');
+  const equityEl = document.getElementById('resultEquity');
+  const flopContainer = document.getElementById('resultFlop');
+  const flopLabel = document.getElementById('flopLabel');
+  const postFlop = document.getElementById('postFlopEquity');
+  const showdownList = document.getElementById('showdownList');
+
+  icon.className = 'result-icon ' + (playerWon ? 'correct' : 'wrong');
+  icon.textContent = playerWon ? '🏆' : '✗';
+
+  text.textContent = playerWon ? 'You Win!' : 'Busted!';
+  text.style.color = playerWon ? 'var(--gold)' : 'var(--wrong)';
+
+  explanation.textContent = playerWon
+    ? `You eliminated all opponents and finished with ${rpChips[playerPositionIndex]} chips!`
+    : `You busted after ${rpHandNum} hands.`;
+
+  equityEl.textContent = `Final chips: ${rpChips[playerPositionIndex]}`;
+  flopLabel.textContent = '';
+  flopContainer.innerHTML = '';
+  postFlop.textContent = '';
+  showdownList.innerHTML = '';
+
+  const nextBtn = document.getElementById('nextBtn');
+  nextBtn.textContent = 'Play Again';
+  nextBtn.onclick = () => {
+    overlay.classList.remove('show');
+    initRealPlay();
+  };
+
+  overlay.classList.add('show');
+
+  document.getElementById('actions').classList.add('disabled');
+  document.getElementById('playerCards').innerHTML = '';
+  document.getElementById('handNotation').textContent = 'Game Over';
+  document.getElementById('equityDisplay').innerHTML = '';
+}
+
+// ===== KEYBOARD SHORTCUTS =====
+document.addEventListener('keydown', (e) => {
+  if (document.getElementById('resultOverlay').classList.contains('show')) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      document.getElementById('nextBtn').click();
+    }
+    return;
+  }
+
+  const actions = document.getElementById('actions');
+  if (actions.classList.contains('disabled')) return;
+
+  if (e.key === 'f' || e.key === '1') makeDecision('fold');
+  else if (e.key === 'c' || e.key === '2') makeDecision('call');
+  else if (e.key === 'r' || e.key === '3') makeDecision('raise');
+});
+
+// ===== INIT =====
+try {
+  dealNewHand();
+} catch(e) {
+  document.body.insertAdjacentHTML('afterbegin',
+    '<div style="background:#e53935;color:#fff;padding:12px;font-size:14px;">JS Error: '+e.message+'</div>');
+}
+</script>
+
+</body>
+</html>
