@@ -41,13 +41,6 @@ body {
   font-size: 14px;
 }
 
-.app-logo {
-  width: 36px;
-  height: 36px;
-  object-fit: contain;
-  border-radius: 6px;
-}
-
 .stats {
   display: flex;
   gap: 14px;
@@ -118,21 +111,36 @@ body {
   box-shadow: 0 0 0 4px #3a2510, 0 8px 32px rgba(0,0,0,0.5);
 }
 
-/* Pot display on table */
-.pot-display {
+/* Center of table: logo + pot */
+.table-center {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.table-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 8px;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+}
+
+.pot-display {
   text-align: center;
   color: var(--gold);
   font-weight: 700;
-  font-size: 16px;
+  font-size: 14px;
   text-shadow: 0 1px 4px rgba(0,0,0,0.8);
   display: none;
 }
-.pot-display .pot-label { font-size: 10px; color: #ccc; text-transform: uppercase; }
+.pot-display .pot-label { font-size: 9px; color: #ccc; text-transform: uppercase; }
 
 .seat {
   position: absolute;
@@ -620,7 +628,6 @@ body {
 </noscript>
 
 <div class="top-bar">
-  <img src="logo.png" alt="Logo" class="app-logo">
   <div class="stats" id="statsBar">
     <div class="stat-item">
       <span class="stat-label">Score</span>
@@ -656,9 +663,12 @@ body {
 <div class="main">
   <div class="table-container" id="tableContainer">
     <div class="table-felt"></div>
-    <div class="pot-display" id="potDisplay">
-      <div class="pot-label">Pot</div>
-      <div id="potAmount">0</div>
+    <div class="table-center">
+      <img src="logo.png" alt="Logo" class="table-logo">
+      <div class="pot-display" id="potDisplay">
+        <div class="pot-label">Pot</div>
+        <div id="potAmount">0</div>
+      </div>
     </div>
   </div>
 
