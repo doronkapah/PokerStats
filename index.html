@@ -82,6 +82,35 @@ body {
   color: #111;
 }
 
+.players-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #333;
+  border-radius: 20px;
+  padding: 4px 12px;
+}
+.players-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #aaa;
+  white-space: nowrap;
+}
+.players-selector select {
+  background: transparent;
+  border: none;
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  padding: 1px 2px;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  text-align: center;
+}
+
 /* Main Area */
 .main {
   flex: 1;
@@ -130,6 +159,11 @@ body {
   object-fit: contain;
   border-radius: 8px;
   filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+  display: block;
+  transition: filter 0.2s;
+}
+.table-logo-link:hover .table-logo {
+  filter: drop-shadow(0 2px 10px rgba(240,192,64,0.7));
 }
 
 .pot-display {
@@ -657,6 +691,19 @@ body {
       <button class="active" id="btn6max" onclick="setTableSize(6)">6-Max</button>
       <button id="btn9max" onclick="setTableSize(9)">9-Max</button>
     </div>
+    <div class="players-selector">
+      <span class="players-label">Players</span>
+      <select id="numPlayersSelect" onchange="setNumPlayers(parseInt(this.value))">
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+      </select>
+    </div>
   </div>
 </div>
 
@@ -664,7 +711,9 @@ body {
   <div class="table-container" id="tableContainer">
     <div class="table-felt"></div>
     <div class="table-center">
-      <img src="logo.png" alt="Logo" class="table-logo">
+      <a href="https://papaginos.co.il/" target="_blank" rel="noopener noreferrer" class="table-logo-link">
+        <img src="logo.png" alt="Logo" class="table-logo">
+      </a>
       <div class="pot-display" id="potDisplay">
         <div class="pot-label">Pot</div>
         <div id="potAmount">0</div>
@@ -863,6 +912,7 @@ const RANGES = {
 // ===== GAME STATE =====
 let gameMode = 'trainer'; // 'trainer', 'lookup', 'realplay'
 let tableSize = 6;
+let numPlayers = 2;
 let deck = [];
 let playerCards = [];
 let flopCards = [];
@@ -1004,8 +1054,17 @@ function renderTable() {
 }
 
 // ===== EQUITY LOOKUP =====
-function getEquity(notation) {
+function getBaseEquity(notation) {
   return EQUITY[notation] || 40;
+}
+
+function getEquity(notation) {
+  const base = getBaseEquity(notation);
+  if (numPlayers <= 2) return base;
+  // Adjust for multiple opponents: win prob vs N-1 opponents
+  const p = base / 100;
+  const adjusted = p / (p + (1 - p) * (numPlayers - 1));
+  return Math.round(Math.min(95, Math.max(5, adjusted * 100)));
 }
 
 // ===== POST-FLOP EQUITY ESTIMATE =====
@@ -1046,8 +1105,11 @@ function estimatePostFlopEquity(holeCards, communityCards) {
     if (sorted[i+3] - sorted[i] <= 4) bonus += 5;
   }
 
-  const base = getEquity(getHandNotation(holeCards[0], holeCards[1]));
-  return Math.min(95, Math.max(10, base + bonus - 10));
+  const base = getBaseEquity(getHandNotation(holeCards[0], holeCards[1]));
+  const raw = Math.min(95, Math.max(10, base + bonus - 10));
+  if (numPlayers <= 2) return raw;
+  const p = raw / 100;
+  return Math.round(Math.min(95, Math.max(5, p / (p + (1 - p) * (numPlayers - 1)) * 100)));
 }
 
 // ===== CORRECT ACTION =====
@@ -1076,7 +1138,8 @@ function getExplanation(notation, position, correct) {
                      correct === 'call'  ? 'worth calling but not raising' :
                      'not profitable to play';
 
-  return `${handDesc} from ${position} is ${rangeDesc} — ${percentile} (${eq}% equity vs random).`;
+  const oppLabel = numPlayers <= 2 ? 'vs random hand' : `vs ${numPlayers - 1} opponents`;
+  return `${handDesc} from ${position} is ${rangeDesc} — ${percentile} (${eq}% equity ${oppLabel}).`;
 }
 
 // ===== UPDATE STATS =====
@@ -1191,6 +1254,20 @@ function setTableSize(size) {
       dealNewHand();
     }
   }
+}
+
+// ===== SET NUM PLAYERS =====
+function setNumPlayers(n) {
+  numPlayers = n;
+  // Refresh equity display for current hand
+  if (handNotation) {
+    handEquity = getEquity(handNotation);
+    const equityEl = document.getElementById('equityDisplay');
+    if (equityEl && equityEl.innerHTML) {
+      equityEl.innerHTML = `Pre-flop equity: <span class="equity-value">${handEquity}%</span>`;
+    }
+  }
+  if (gameMode === 'analyze') runAnalysis();
 }
 
 // ===== POSITION PICKER (Lookup mode) =====
